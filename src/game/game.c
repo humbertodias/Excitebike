@@ -9,6 +9,10 @@
 #include "levelmgr.h"
 #include "objmgr.h"
 
+#ifdef USE_SDL
+#include <SDL.h>
+#endif
+
 static void _gameInit();
 static void _gameShutdown();
 static void _gameDraw();
@@ -55,14 +59,14 @@ static Level* _curLevel = NULL;
 /// @param lpCmdLine 
 /// @param nCmdShow 
 /// @return 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(USE_SDL)
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 #else
 int main(int argc, char** argv)
 #endif
 {
 	const char GAME_NAME[] = "Excitebike";
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(USE_SDL)
 	HINSTANCE instance = hInstance;
 	(void)hPrevInstance;
 	(void)lpCmdLine;

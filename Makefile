@@ -8,6 +8,7 @@
 #
 # macOS and Linux use SDL2, SDL2_image and SDL2_mixer.
 # Windows keeps the Win32 / XAudio2 / SOIL link.
+#   make USE_SDL=1    Windows build that uses SDL instead of Win32
 #
 # Overrides:
 #   make DEBUG=1
@@ -59,7 +60,36 @@ endif
 
 TARGET_OS ?= $(HOST_OS)
 
-ifeq ($(TARGET_OS),windows)
+ifeq ($(USE_SDL),1)
+  PLATFORM_SRCS := src/framework/framework_sdl.c src/framework/sound_sdl.c src/framework/soil_sdl.c
+  SDL_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_mixer SDL2_image 2>/dev/null)
+  SDL_LIBS := $(shell $(PKG_CONFIG) --libs sdl2 SDL2_mixer SDL2_image 2>/dev/null)
+  PLATFORM_CFLAGS := -DUSE_SDL $(SDL_CFLAGS)
+  ifeq ($(TARGET_OS),windows)
+    EXE := $(APP).exe
+    ifeq ($(HOST_OS),windows)
+      DEFAULT_CC := gcc
+    else
+      DEFAULT_CC := x86_64-w64-mingw32-gcc
+    endif
+    PLATFORM_LDFLAGS := -mwindows
+    PLATFORM_LDLIBS := $(SDL_LIBS) -lopengl32 -lglu32
+  else ifeq ($(TARGET_OS),macos)
+    EXE := $(APP)
+    DEFAULT_CC := clang
+    PLATFORM_CFLAGS += -DGL_SILENCE_DEPRECATION -D_DARWIN_C_SOURCE
+    PLATFORM_LDFLAGS := -Wl,-headerpad_max_install_names
+    PLATFORM_LDLIBS := $(SDL_LIBS) -framework OpenGL
+  else ifeq ($(TARGET_OS),linux)
+    EXE := $(APP)
+    DEFAULT_CC := gcc
+    PLATFORM_CFLAGS += -D_GNU_SOURCE
+    PLATFORM_LDFLAGS := -Wl,-rpath,'$$$$ORIGIN/libs'
+    PLATFORM_LDLIBS := $(SDL_LIBS) -lGL -lGLU -lm
+  else
+    $(error Unsupported TARGET_OS '$(TARGET_OS)' for USE_SDL.)
+  endif
+else ifeq ($(TARGET_OS),windows)
   EXE := $(APP).exe
   ifeq ($(HOST_OS),windows)
     DEFAULT_CC := gcc
@@ -80,7 +110,7 @@ else ifeq ($(TARGET_OS),linux)
     SDL_LIBS := -lGL -lGLU -lSDL2 -lSDL2_mixer -lSDL2_image
   endif
   PLATFORM_CFLAGS := -D_GNU_SOURCE $(SDL_CFLAGS)
-  PLATFORM_LDFLAGS :=
+  PLATFORM_LDFLAGS := -Wl,-rpath,'$$$$ORIGIN/libs'
   PLATFORM_LDLIBS := $(SDL_LIBS) -lm
 else ifeq ($(TARGET_OS),macos)
   EXE := $(APP)
@@ -89,7 +119,7 @@ else ifeq ($(TARGET_OS),macos)
   SDL_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_mixer SDL2_image 2>/dev/null)
   SDL_LIBS := $(shell $(PKG_CONFIG) --libs sdl2 SDL2_mixer SDL2_image 2>/dev/null)
   PLATFORM_CFLAGS := -DGL_SILENCE_DEPRECATION -D_DARWIN_C_SOURCE $(SDL_CFLAGS)
-  PLATFORM_LDFLAGS :=
+  PLATFORM_LDFLAGS := -Wl,-headerpad_max_install_names
   PLATFORM_LDLIBS := $(SDL_LIBS) -framework OpenGL
 else
   $(error Unsupported TARGET_OS '$(TARGET_OS)'. Use windows, linux, or macos.)

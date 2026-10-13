@@ -187,10 +187,25 @@ def ldd_deps(path):
             continue
         soname, rest = line.split("=>", 1)
         soname = soname.strip()
-        location = rest.strip().split()[0] if rest.strip() else ""
-        if location.startswith("/"):
+        rest = rest.strip()
+        if rest.startswith("not found"):
+            sys.exit(f"{soname} was not found while inspecting {path}")
+        location = rest.split()[0] if rest else ""
+        if location.startswith("/") or (len(location) >= 3 and location[1] == ":"):
             deps.append((soname, Path(location)))
     return deps
+
+
+def to_native_path(path):
+    """Turn an MSYS path such as /ucrt64/bin/SDL2.dll into a Windows path."""
+    text = str(path).replace("\\", "/")
+    if os.name != "nt" or (len(text) >= 2 and text[1] == ":"):
+        return Path(text)
+    cygpath = shutil.which("cygpath")
+    if cygpath is None:
+        sys.exit(f"cygpath is required to locate {text}")
+    converted = subprocess.check_output([cygpath, "-w", text], text=True).strip()
+    return Path(converted)
 
 
 def skip_linux(soname):
@@ -230,9 +245,12 @@ def bundle_windows(binary, stage):
     seen = {binary.resolve()}
     while pending:
         current = pending.pop()
-        for _soname, source in ldd_deps(current):
+        for _soname, listed in ldd_deps(current):
+            source = to_native_path(listed)
             if not is_mingw_runtime(source):
                 continue
+            if not source.exists():
+                sys.exit(f"missing runtime DLL: {listed} ({source})")
             dest = stage / source.name
             if dest.resolve() in seen:
                 continue
